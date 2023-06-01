@@ -1,5 +1,62 @@
 ;; -*- lexical-binding: t; -*-
 
+;; Plugins to add
+;; TODO: eslint for web-mode and typescript, with auto-fix
+;; TODO: navigate windows like with C-w in vim
+;; TODO: add emoji support
+;; TODO: only highlight uppercase todo keywords
+;; TODO: doom-modeline + nerd-icons
+;; TODO: org-modern
+;; TODO: chatgpt
+;; TODO: corfu icons (kind-icons) 
+;; DONE: add highlighting for todo keywords
+
+;; Meow
+;; TODO: add paste above with P (no idea how to do this, maybe ask discord or reddit)
+;;       apparently this doesn't exist in vim?
+;; TODO: add "thing" configuration to meow-setup
+;; TODO: make C-o and C-i work properly
+;; TODO: zd for goto definition etc.
+;; TODO: disable lsp-ui elements
+;; DONE: add angle brackets to meow "things" list
+;; DONE: replace mode
+;; DONE: c should change to end of line
+;; KILL: SPC-y, SPC-d and SPC-p to interact with clipboard
+;; (C-y for paste and M-w for copy works fine)
+;; KILL: D should change to end of line
+;; (using d in normal mode works by default)
+;; KILL: isearch or maybe avy with /
+;; (will test out meow-visit and see if it works fine)
+
+;; Bugs & fixes
+;; TODO: get rid of chinese thing in modeline
+;; TODO: smart-parens should not insert two ' in elisp-mode
+;; TODO: C-u should go to top of file when spammed
+;; TODO: fix trash appearing in user-emacs-folder
+
+;; Aesthetics
+;; TODO: minimal startup screen
+
+;; Emacs
+;; TODO: modularize init.el, and add keybind to search modules with consult
+;; TODO: isearch alternative or at least case-insensitivity and wrap-around
+;; TODO: linear undo and redo system (with vundo support)
+;; TODO: consult-line with / or C-f
+;; TODO: "lazy" isearch (show 1/9 results in modeline, search reddit)
+;; DONE: disable line wrapping in prog-mode
+;; DONE: S-return inserts line below in normal mode
+;; DONE: something like evil-nerd-commenter for commenting line in normal mode
+
+;; Things to do
+;; meow: SPC-c-x-a and some other keys are the only ones that turn into C-c C-x etc. Find out these keys.
+;; meow: use tree-sitter instead or combined with things, ask GitHub about ci" equivalant when at beginning of line
+;; treesit: redo native treesitter with vue grammar
+;; vscode: compare features with vscode, copy over keybinds and settings
+
+;; Things to consider
+;; meow: add hook when exiting insert mode:
+;; (add-hook 'meow-insert-exit-hook 'quit-something)
+
 ;; The default is 800 kilobytes.  Measured in bytes.
 (setq gc-cons-threshold (* 50 1000 1000))
 
@@ -12,13 +69,10 @@
                               (time-subtract after-init-time before-init-time)))
                      gcs-done)))
 
-;; Silence compiler warnings as they can be pretty disruptive
 (setq native-comp-async-report-warnings-errors nil)
 
 ;; Set the right directory to store the native comp cache
 (add-to-list 'native-comp-eln-load-path (expand-file-name "eln-cache/" user-emacs-directory))
-
-(add-to-list 'exec-path "~/.local/share/pnpm/")
 
 (defvar elpaca-installer-version 0.4)
 (defvar elpaca-directory (expand-file-name "elpaca/" user-emacs-directory))
@@ -57,27 +111,48 @@
 (add-hook 'after-init-hook #'elpaca-process-queues)
 (elpaca `(,@elpaca-order))
 
+(elpaca use-package)
+
 (elpaca elpaca-use-package
 	(elpaca-use-package-mode)
 	(setq elpaca-use-package-by-default t))
 
 (elpaca-wait)
 
+(server-start)
+
 ;; Thanks, but no thanks
 (setq inhibit-startup-message t)
 (setq scroll-margin 4)
 (setq scroll-step 1)
+(setq scroll-conservatively 10000)
+(setq scroll-preserve-screen-position 1)
 (setq switch-to-buffer-obey-display-actions t)
 
 (setq-default tab-width 2)
 (setq-default indent-tabs-mode nil)
+(setq-default indicate-empty-lines t)
 
+;; sets empty line indicator to tilde and removes arrows in the right margin
+(define-fringe-bitmap 'tilde [0 0 0 113 219 142 0 0] nil nil 'center)
+(setq-default fringe-indicator-alist '((empty-line . tilde)))
 
 (savehist-mode)
 (save-place-mode)
 (recentf-mode)
-(column-number-mode)
-(display-line-numbers-mode)
+(column-number-mode) ;; see column number in modeline (row,col)
+
+;; Enable line numbers for some modes
+(dolist (mode '(text-mode-hook
+                prog-mode-hook
+                conf-mode-hook))
+  (add-hook mode (lambda () (display-line-numbers-mode 1))))
+
+;; Override org-mode, which derives from the above
+(add-hook 'org-mode-hook (lambda () (display-line-numbers-mode 0)))
+
+;; Do not wrap lines in prog-mode
+(add-hook 'prog-mode-hook (lambda () (setq truncate-lines t)))
 
 (load-theme 'modus-operandi t)
 
@@ -86,25 +161,45 @@
                     :font "JetBrains Mono"
                     :height 120)
 
-(defun scroll-half-page (direction)
-  "Scrolls half page up if `direction' is non-nil, otherwise will scroll half page down."
-  (let ((opos (cdr (nth 6 (posn-at-point)))))
-    ;; opos = original position line relative to window
-    (move-to-window-line nil)  ;; Move cursor to middle line
-    (if direction
-        (recenter-top-bottom -1)  ;; Current line becomes last
-      (recenter-top-bottom 0))  ;; Current line becomes first
-    (move-to-window-line opos)))  ;; Restore cursor/point position
+(use-package vundo
+  :bind (:map vundo-mode-map
+              ("h". vundo-backward)
+              ("j". vundo-next)
+              ("k". vundo-previous)
+              ("l". vundo-forward)
+              ("q". vundo-quit)
+              ("RET". vundo-confirm)))
 
-(defun scroll-half-page-down ()
-  "Scrolls exactly half page down keeping cursor/point position."
-  (interactive)
-  (scroll-half-page nil))
+(use-package drag-stuff
+  :init
+  (drag-stuff-mode t))
 
-(defun scroll-half-page-up ()
-  "Scrolls exactly half page up keeping cursor/point position."
+ ;; Go to next mark
+
+(defun my-meow-replace ()
   (interactive)
-  (scroll-half-page t))
+  ;; if theres a selection
+  (if (use-region-p)
+      (meow-replace)
+    ;; if theres no selection
+  (setq cursor-type 'hbar)
+  (setq mychar (read-char))
+  ;; \e is escape key
+  (if (= ?\e mychar)
+      (message "Cancelled replace")
+    (delete-char 1)
+    (insert mychar)
+    (backward-char))
+  (setq cursor-type 'box)))
+
+;; c does not behave like d by default, this function fixes this
+(defun my-meow-change ()
+  (interactive)
+  ;; if there's no selection, select to end of line
+  (unless (use-region-p)
+    (let ((line (car (rassoc 'line meow-char-thing-table))))
+      (meow-end-of-thing line)))
+  (meow-change))
 
 (defun meow-setup ()
   (setq meow-cheatsheet-layout meow-cheatsheet-layout-qwerty)
@@ -119,6 +214,11 @@
    '("f r" . consult-recent-file)
    '("b i" . ibuffer)
    '("b k" . kill-this-buffer)
+   '("f p" . (lambda () (interactive) (find-file user-init-file)))
+   '("f P" . (lambda () (interactive) (find-file (expand-file-name "early-init.el" user-emacs-directory))))
+   '("p f" . project-find-file)
+   '("p p" . project-switch-project)
+   '("," . consult-buffer)
    ;; Use SPC (0-9) for digit arguments.
    '("1" . meow-digit-argument)
    '("2" . meow-digit-argument)
@@ -153,7 +253,7 @@
    '("A" . meow-open-below)
    '("b" . meow-back-word)
    '("B" . meow-back-symbol)
-   '("c" . meow-change)
+   '("c" . my-meow-change)
    '("x" . delete-char) ;; changed
    ;; '("X" . meow-backward-delete) ;; changed
    '("e" . meow-next-word)
@@ -166,9 +266,9 @@
    '("i" . meow-insert)
    '("I" . meow-open-above)
    '("j" . meow-next)
-   '("J" . meow-next-expand)
+   '("J" . drag-stuff-down)
    '("k" . meow-prev)
-   '("K" . meow-prev-expand)
+   '("K" . drag-stuff-up)
    '("l" . meow-right)
    '("L" . meow-right-expand)
    '("m" . meow-join)
@@ -176,24 +276,22 @@
    '("o" . meow-block)
    '("O" . meow-to-block)
    '("p" . meow-yank)
+   ;; TODO: '("P" . meow-yank-above)
    '("q" . meow-quit)
    '("Q" . meow-goto-line)
-   '("r" . meow-replace)
-   '("R" . meow-swap-grab)
-   '("d" . meow-kill) ;; changed
+   '("r" . my-meow-replace)
+   '("d" . meow-kill)
    '("t" . meow-till)
-   '("u" . meow-undo)
-   '("U" . meow-undo-in-selection)
-   '("v" . meow-visit)
+   '("u" . meow-undo) 
+   '("U" . vundo)
+   '("/" . meow-visit)
    '("w" . meow-mark-word)
    '("W" . meow-mark-symbol)
-   '("s" . meow-line) ;; changed
-   '("S" . meow-goto-line) ;; changed
+   '("s" . meow-line)
+   '("S" . meow-goto-line) ;; quite useless
    '("y" . meow-save)
    '("Y" . meow-sync-grab)
    '("z" . meow-pop-selection)
-   ;; '("C-u" . scroll-half-page-up)
-   ;; '("C-d" . scroll-half-page-down)
    '("'" . repeat)
    '("=" . meow-indent)
    '("<escape>" . ignore)))
@@ -202,28 +300,77 @@
   :custom
   (meow-use-enhanced-selection-effect t)
   (meow-expand-hint-remove-delay 0)
-  (meow-char-thing-table
-   '((114 . round)
-     (104 . square)
-     (99 . curly)
-     (115 . string)
-     (101 . symbol)
-     (119 . window)
-     (98 . buffer)
-     (112 . paragraph)
-     (108 . line)
-     (118 . visual-line)
-     (100 . defun)
-     (46 . sentence)))
   :config
+  (meow-thing-register 'tags
+                       '(regexp "<.+>" "</.+>")
+                       '(regexp "<.+>" "</.+>"))
+  (meow-thing-register 'angle '(regexp "<" ">") '(regexp "<" ">"))
+  (setq meow-char-thing-table
+        '((?\( . round)
+          (?\[ . square)
+          (?\{ . curly)
+          (?s . string)
+          (?S . symbol)
+          (?w . window)
+          (?b . buffer)
+          (?p . paragraph)
+          (?l . line)
+          (?v . visual-line)
+          (?f . defun)
+          (?t . tags)
+          (?a . angle)
+          (?. . sentence)))
   (meow-setup)
   (meow-global-mode 1))
+
+(defun scroll-half-page (direction)
+  "Scrolls half page up if `direction' is non-nil, otherwise will scroll half page down."
+  (let ((opos (cdr (nth 6 (posn-at-point)))))
+    ;; opos = original position line relative to window
+    (move-to-window-line nil)  ;; Move cursor to middle line
+    (if direction
+        (recenter-top-bottom -1)  ;; Current line becomes last
+      (recenter-top-bottom 0))  ;; Current line becomes first
+    (move-to-window-line opos)))  ;; Restore cursor/point position
+
+(defun scroll-half-page-down ()
+  "Scrolls exactly half page down keeping cursor/point position."
+  (interactive)
+  (scroll-half-page nil))
+
+(defun scroll-half-page-up ()
+  "Scrolls exactly half page up keeping cursor/point position."
+  (interactive)
+  (scroll-half-page t))
+
+(defun my-open-line-below ()
+  (interactive)
+  (move-end-of-line 1)
+  (newline))
+
+(defun my-pop-local-mark-ring ()
+  (interactive)
+  (set-mark-command t))
+
+(defun my-comment-dwim ()
+  (interactive)
+  ;; if there is selection comment selection, otherwise comment line
+  (if (use-region-p)
+      (comment-or-uncomment-region (region-beginning) (region-end))
+    (comment-line 1)))
+
+(global-set-key (kbd "S-<return>") 'my-open-line-below)
+(global-set-key (kbd "M-;") 'my-comment-dwim)
+
+(global-set-key (kbd "C-o") 'pop-global-mark) ;; Go to previous mark
+(global-set-key (kbd "C-i") 'my-pop-local-mark-ring)
 
 (global-set-key (kbd "C-u") 'scroll-half-page-up)
 (global-set-key (kbd "C-d") 'scroll-half-page-down)
 (global-set-key (kbd "C-SPC") 'completion-at-point)
 
 (use-package vertico
+  :custom (vertico-cycle t)
   :bind (:map vertico-map
 	            ("C-j" . vertico-next)
 	            ("C-k" . vertico-previous))
@@ -250,8 +397,8 @@
   (setq xref-show-xrefs-function #'consult-xref
         xref-show-definitions-function #'consult-xref))
 
+;; TODO: decrease delay
 (use-package corfu
-  :elpaca (corfu :files (:defaults "extensions/*"))
   :bind (:map corfu-map
 	            ("<escape>" . corfu-quit)
 	            ("C-j" . corfu-next)
@@ -259,6 +406,8 @@
   ;; Optional customizations
   :custom
   (corfu-auto t)                 ;; Enable auto completion
+  (corfu-auto-prefix 2)                 ;; Enable auto completion
+  (corfu-auto-delay 0.1)                 ;; Enable auto completion
   ;; (corfu-separator ?\s)          ;; Orderless field separator
   ;; (corfu-quit-at-boundary nil)   ;; Never quit at completion boundary
   ;; (corfu-quit-no-match nil)      ;; Never quit, even if there is no match
@@ -266,41 +415,65 @@
   ;; (corfu-preselect 'prompt)      ;; Preselect the prompt
   ;; (corfu-on-exact-match nil)     ;; Configure handling of exact matches
   ;; (corfu-scroll-margin 5)        ;; Use scroll margin
-
   :init
   (global-corfu-mode))
 
-;; Add extensions
-(use-package cape
+(use-package corfu-popupinfo
+  :elpaca nil
+  :load-path "elpaca/repos/corfu/extensions/"
+  :after corfu
+  :config
+  (corfu-popupinfo-mode))
+
+(use-package corfu-history
+  :elpaca nil
+  :load-path "elpaca/repos/corfu/extensions/"
+  :after corfu
+  :config
+  (corfu-history-mode))
+
+(use-package marginalia
+  :after vertico
+  :custom
+  (marginalia-annotators '(marginalia-annotators-heavy marginalia-annotators-light nil))
   :init
+  (marginalia-mode))
+
+(use-package cape
   ;; Add `completion-at-point-functions', used by `completion-at-point'.
+  :init
   (add-to-list 'completion-at-point-functions #'cape-dabbrev)
   (add-to-list 'completion-at-point-functions #'cape-file)
   (add-to-list 'completion-at-point-functions #'cape-elisp-block))
+
+(use-package helpful
+  :bind
+  ([remap describe-function] . helpful-function)
+  ([remap describe-symbol] . helpful-symbol)
+  ([remap describe-variable] . helpful-variable)
+  ([remap describe-command] . helpful-command)
+  ([remap describe-key] . helpful-key))
 
 (use-package avy
   :config
   (global-set-key (kbd "C-;") 'avy-goto-char-timer))
 
-(use-package ace-window
-  :bind (("M-o" . ace-window))
-  :custom
-  (aw-scope 'frame)
-  (aw-keys '(?a ?s ?d ?f ?g ?h ?j ?k ?l))
-  (aw-minibuffer-flag t)
-  (aw-dispatch-always t)
+(use-package dirvish
   :config
-  (ace-window-display-mode 1))
+  (dirvish-override-dired-mode))
 
+;; TODO: add more modes (html, css, jsx, tsx)
 (use-package web-mode
-  :mode "(\\.\\(html?\\|tsx\\|jsx\\)\\'"
+  :mode "\\.vue\\'"
   :config
   (setq-default web-mode-code-indent-offset 2)
   (setq-default web-mode-markup-indent-offset 2)
-  (setq-default web-mode-attribute-indent-offset 2))
+  (setq-default web-mode-attribute-indent-value 2))
 
-(define-derived-mode vue-mode web-mode "Vue Mode")
-(add-to-list 'auto-mode-alist '("\\.vue\\'" . vue-mode))
+(use-package typescript-mode
+  :mode "\\.ts\\'"
+  :config
+  (setq typescript-indent-level 2))
 
 (use-package tree-sitter
   :config
@@ -314,39 +487,52 @@
 (use-package smartparens
   :hook (prog-mode . smartparens-mode))
 
-(use-package eglot
-  :hook
-  (python-mode . eglot-ensure)
-  (vue-mode . eglot-ensure)
-  :config
-  (add-to-list 'eglot-server-programs
-               '(vue-mode . (eglot-volar "vue-language-server" "--stdio")))
-  (defclass eglot-volar (eglot-lsp-server) ()
-    :documentation "A custom class for volar")
+(use-package rainbow-delimiters
+  :hook (prog-mode . rainbow-delimiters-mode))
 
-  (cl-defmethod eglot-initialization-options ((server eglot-volar))
-    "Passes through required volar initialization options"
-    (let*
-        ((serverPath
-          (expand-file-name
-           "lib/tsserverlibrary.js"
-           (shell-command-to-string "pnpm -g --parseable list typescript | head -n1"))))
-      (list :typescript
-            (list :serverPath serverPath)
-            :languageFeatures
-            (list :completion
-                  (list :defaultTagNameCase "both"
-                        :defaultAttrNameCase "kebabCase"
-                        :getDocumentNameCasesRequest nil
-                        :getDocumentSelectionRequest nil)
-                  :diagnostics
-                  (list :getDocumentVersionRequest nil))
-            :documentFeatures
-            (list :documentFormatting
-                  (list :defaultPrintWidth 100
-                        :getDocumentPrintWidthRequest nil)
-                  :documentSymbol t
-                  :documentColor t)))))
+(defun toggle-darkroom-mode ()
+  (interactive)
+  (if (bound-and-true-p darkroom-mode)
+      (progn (unless (eq major-mode 'org-mode)
+               (display-line-numbers-mode 1))
+             (darkroom-mode -1))
+    (display-line-numbers-mode -1)
+    (darkroom-mode 1)))
+
+(use-package darkroom
+  :commands darkroom-mode
+  :config
+  (setq darkroom-text-scale-increase 0))
+
+;; the color comments correspond to modus-themes-operandi-colors colors
+(use-package hl-todo
+  :custom
+  (hl-todo-keyword-faces '(("TODO" . "#4faa09") ;; green-graph-0-bg
+                           ("DONE". "#505050") ;; fg-alt
+                           ("KILL" . "#b60000"))) ;; red-intense
+  :init
+  (global-hl-todo-mode))
+
+;; For colored hex strings
+(use-package rainbow-mode
+  :defer) 
+
+(use-package lsp-mode
+  :hook ((web-mode typescript-mode) . lsp)
+  :custom (lsp-headerline-breadcrumb-enable nil)
+  :config
+  (setq lsp-eslint-auto-fix-on-save t))
+
+(use-package flycheck
+  :hook (lsp-mode . flycheck-mode))
+  
+(defun lsp--eslint-before-save (orig-fun)
+  "Run lsp-eslint-apply-all-fixes and then run the original lsp--before-save."
+  (when lsp-eslint-auto-fix-on-save (lsp-eslint-fix-all))
+  (funcall orig-fun))
+
+(advice-add 'lsp--before-save :around #'lsp--eslint-before-save)
 
 ;; Make gc pauses faster by decreasing the threshold.
 (setq gc-cons-threshold (* 2 1000 1000))
+
